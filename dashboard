@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ES Pricing Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1a202c;
+    --muted: #718096;
+    --accent: #3b82f6;
+    --accent2: #10b981;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --s-color: #7c3aed;
+    --m-color: #0369a1;
+    --j-color: #065f46;
+    --ap-color: #92400e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 13px; }
+
+  /* ── Header ── */
+  header { background: #1e293b; color: #fff; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+  .last-update { font-size: 11px; color: #94a3b8; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; display: inline-block; margin-right: 6px; }
+
+  /* ── Nav Tabs ── */
+  .tabs { display: flex; gap: 0; background: #fff; border-bottom: 1px solid var(--border); padding: 0 24px; }
+  .tab { padding: 12px 20px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--muted); border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── Layout ── */
+  .page { display: none; padding: 20px 24px; }
+  .page.active { display: block; }
+
+  /* ── Controls bar ── */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; background: var(--card); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border); }
+  .controls label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+  select, input[type=checkbox] { cursor: pointer; }
+  select { padding: 5px 8px; border: 1px solid var(--border); border-radius: 5px; font-size: 12px; background: var(--bg); color: var(--text); }
+  .toggle-group { display: flex; gap: 8px; align-items: center; }
+  .toggle { display: flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border); background: var(--bg); user-select: none; }
+  .toggle input { margin: 0; }
+  .toggle.on { background: #eff6ff; border-color: var(--accent); color: var(--accent); }
+  .ctrl-sep { width: 1px; height: 24px; background: var(--border); }
+
+  /* ── Cards / KPI boxes ── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .kpi .kpi-label { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+  .kpi .kpi-val { font-size: 24px; font-weight: 700; }
+  .kpi .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ── Tables ── */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 18px; }
+  .card-header { padding: 12px 16px; font-weight: 600; font-size: 13px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { padding: 9px 12px; text-align: left; font-weight: 600; font-size: 11px; color: var(--muted); background: #f8fafc; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--accent); }
+  td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8fafc; }
+
+  /* ── Level badges ── */
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; letter-spacing: 0.3px; }
+  .badge-S { background: #ede9fe; color: var(--s-color); }
+  .badge-M { background: #e0f2fe; color: var(--m-color); }
+  .badge-J { background: #d1fae5; color: var(--j-color); }
+  .badge-AP  { background: #fef3c7; color: var(--ap-color); }
+  .badge-AVG { background: #f1f5f9; color: #475569; }
+
+  /* ── Metric bars ── */
+  .bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .bar { height: 6px; border-radius: 3px; min-width: 2px; }
+  .bar-cr  { background: var(--accent); }
+  .bar-s7  { background: var(--accent2); }
+  .bar-ppu { background: var(--warn); }
+  .bar-nd  { background: var(--danger); }
+
+  /* ── Comparison layout ── */
+  .cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .cmp-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .cmp-name { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+  .cmp-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
+  .cmp-row:last-child { border-bottom: none; }
+  .cmp-metric { font-size: 12px; color: var(--muted); }
+  .cmp-val { font-size: 13px; font-weight: 600; }
+  .better { color: var(--accent2); }
+  .worse  { color: var(--danger); }
+
+  /* ── Chart containers ── */
+  .chart-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 18px; }
+  .chart-wrap canvas { max-height: 280px; }
+  .charts-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+
+  /* ── Loading / empty ── */
+  .loading { text-align: center; color: var(--muted); padding: 40px; font-size: 14px; }
+  .empty   { text-align: center; color: var(--muted); padding: 20px; font-size: 12px; }
+
+  @media (max-width: 700px) {
+    .cmp-grid, .charts-2col { grid-template-columns: 1fr; }
+    .controls { flex-direction: column; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ES Pricing Dashboard</h1>
+  <span class="last-update"><span class="status-dot"></span>Last updated: <span id="lastUpdated">loading…</span></span>
+</header>
+
+<div class="tabs">
+  <div class="tab active">Individual Performance</div>
+  <div class="tab">Team Performance</div>
+  <div class="tab">Comparison</div>
+  <div class="tab">CTM &amp; Losses</div>
+</div>
+
+<!-- ════════════════════ INDIVIDUAL PAGE ════════════════════ -->
+<div id="page-individual" class="page active">
+  <div class="controls">
+    <label>View</label>
+    <select id="ind-view">
+      <option value="Onsite">Onsite</option>
+      <option value="Online">Online</option>
+    </select>
+    <div class="ctrl-sep"></div>
+    <label>Pricer</label>
+    <select id="ind-pricer"></select>
+    <div class="ctrl-sep"></div>
+    <label>Timeframe</label>
+    <select id="ind-tf">
+      <option value="30d">30 days</option>
+      <option value="7d">7 days</option>
+      <option value="MTD">Month to Date</option>
+      <option value="Previous Month">Previous Month</option>
+      <option value="Previous 3 Months">Previous 3 Months</option>
+      <option value="Previous 6 Months">Previous 6 Months</option>
+    </select>
+  </div>
+
+  <div id="ind-kpis" class="kpi-grid"></div>
+
+  <div class="charts-2col">
+    <div class="chart-wrap">
+      <div style="font-weight:600;font-size:12px;margin-bottom:12px;color:var(--muted)">METRIC EVOLUTION ACROSS TIMEFRAMES</div>
+      <canvas id="ind-chart-tf"></canvas>
+    </div>
+    <div class="chart-wrap">
+      <div style="font-weight:600;font-size:12px;margin-bottom:12px;color:var(--muted)">VS TEAM AVERAGE (same timeframe)</div>
+      <canvas id="ind-chart-vs"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">All Metrics — <span id="ind-title" style="color:var(--muted);font-weight:400"></span></div>
+    <div id="ind-table"></div>
+  </div>
+</div>
+
+<!-- ════════════════════ TEAM PAGE ════════════════════ -->
+<div id="page-team" class="page">
+  <div class="controls">
+    <label>View</label>
+    <select id="team-view">
+      <option value="Onsite">Onsite</option>
+      <option value="Online">Online</option>
+    </select>
+    <div class="ctrl-sep"></div>
+    <label>Timeframe</label>
+    <select id="team-tf">
+      <option value="30d">30 days</option>
+      <option value="7d">7 days</option>
+      <option value="MTD">Month to Date</option>
+      <option value="Previous Month">Previous Month</option>
+      <option value="Previous 3 Months">Previous 3 Months</option>
+      <option value="Previous 6 Months">Previous 6 Months</option>
+    </select>
+    <div class="ctrl-sep"></div>
+    <div class="toggle-group">
+      <label class="toggle" id="tog-seniors">
+        <input type="checkbox" id="inc-seniors"> Include Seniors
+      </label>
+      <label class="toggle" id="tog-ap">
+        <input type="checkbox" id="inc-ap"> Include Autopricer
+      </label>
+    </div>
+  </div>
+
+  <div id="team-table-wrap" class="card">
+    <div class="card-header">Team Ranking</div>
+    <div id="team-table"></div>
+  </div>
+
+  <div class="charts-2col">
+    <div class="chart-wrap">
+      <div style="font-weight:600;font-size:12px;margin-bottom:12px;color:var(--muted)">PPU BY PRICER</div>
+      <canvas id="team-chart-ppu"></canvas>
+    </div>
+    <div class="chart-wrap">
+      <div style="font-weight:600;font-size:12px;margin-bottom:12px;color:var(--muted)">% CONVERSION RATE / BOOKING RATE</div>
+      <canvas id="team-chart-cr"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════ COMPARISON PAGE ════════════════════ -->
+<div id="page-comparison" class="page">
+  <div class="controls">
+    <label>View</label>
+    <select id="cmp-view">
+      <option value="Onsite">Onsite</option>
+      <option value="Online">Online</option>
+    </select>
+    <div class="ctrl-sep"></div>
+    <label>Timeframe</label>
+    <select id="cmp-tf">
+      <option value="30d">30 days</option>
+      <option value="7d">7 days</option>
+      <option value="MTD">Month to Date</option>
+      <option value="Previous Month">Previous Month</option>
+      <option value="Previous 3 Months">Previous 3 Months</option>
+      <option value="Previous 6 Months">Previous 6 Months</option>
+    </select>
+    <div class="ctrl-sep"></div>
+    <label>Pricer A</label>
+    <select id="cmp-a"></select>
+    <label>Pricer B</label>
+    <select id="cmp-b"></select>
+  </div>
+  <div id="cmp-content"></div>
+</div>
+
+<!-- ════════════════════ CTM & LOSSES PAGE ════════════════════ -->
+<div id="page-ctm" class="page">
+  <div class="controls">
+    <label>Pricer</label>
+    <select id="ctm-pricer"></select>
+    <div class="ctrl-sep"></div>
+    <label>From</label>
+    <select id="ctm-from"></select>
+    <label>To</label>
+    <select id="ctm-to"></select>
+    <div class="ctrl-sep"></div>
+    <div class="toggle-group">
+      <label class="toggle" id="tog-ctm-seniors">
+        <input type="checkbox" id="ctm-inc-seniors"> Include Seniors in avg
+      </label>
+    </div>
+  </div>
+
+  <!-- KPI boxes for selected range -->
+  <div id="ctm-kpis" class="kpi-grid" style="grid-template-columns:repeat(3,1fr);max-width:600px"></div>
+
+  <!-- YTD vs team average -->
+  <div id="ctm-ytd-wrap" style="display:none;margin-bottom:18px">
+    <div class="card">
+      <div class="card-header">Year-to-date 2026 — Pricer vs Team Average (M+J)</div>
+      <div id="ctm-ytd-table"></div>
+    </div>
+  </div>
+
+  <!-- 6-month trend chart -->
+  <div class="chart-wrap">
+    <div style="font-weight:600;font-size:12px;margin-bottom:12px;color:var(--muted)">EVOLUTION — LAST 6 AVAILABLE MONTHS</div>
+    <canvas id="ctm-chart" style="max-height:320px"></canvas>
+  </div>
+
+  <!-- Monthly breakdown table -->
+  <div class="card">
+    <div class="card-header">Monthly Detail — <span id="ctm-range-label" style="font-weight:400;color:var(--muted)"></span></div>
+    <div id="ctm-table"></div>
+  </div>
+</div>
+
+<script>
+// Apps Script injects live data here via template — falls back to embedded if not present
+if (typeof __SHEET_DATA__ !== 'undefined') { window.__SHEET_DATA__ = __SHEET_DATA__; }
+// ══════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════
+const SHEET_ID = '1p1pPbGecb9Y0lKp16zX5ngBhj4og0pKBFi7RPEK6og0';
+const TIMEFRAMES = ['7d','30d','MTD','Previous Month','Previous 3 Months','Previous 6 Months'];
+
+const ONSITE_COLS = ['% CR','PPU','% Sold 7d','# Sold','% Neg Delta','€ Profit/Car'];
+const ONLINE_COLS = ['% Booking Rate','% OtO Conv','% Sold 7d','PPU','# Self Evals'];
+
+const LEVEL_COLOR = { S:'#7c3aed', M:'#0369a1', J:'#065f46', AP:'#92400e' };
+const LEVEL_BG    = { S:'#ede9fe', M:'#e0f2fe', J:'#d1fae5', AP:'#fef3c7' };
+
+let DATA = { Onsite: [], Online: [] };
+let chartInstances = {};
+
+// ══════════════════════════════════════════════════════
+// LOAD DATA FROM GOOGLE SHEETS (published CSV)
+// ══════════════════════════════════════════════════════
+const SHEET_GIDS = {
+  'Onsite':     '1815555308',
+  'Online':     '75940375',
+  'CTM_Losses': '80771283',
+  'Metadata':   '518814921'
+};
+
+async function loadSheet(tabName) {
+  // If Apps Script injected live data, use it directly
+  if (window.__SHEET_DATA__ && window.__SHEET_DATA__[tabName]) {
+    return window.__SHEET_DATA__[tabName];
+  }
+  // Use the "Publish to web" CSV URL (requires sheet to be published)
+  const gid = SHEET_GIDS[tabName];
+  if (!gid) return null;
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/pub?gid=${gid}&single=true&output=csv`;
+  try {
+    const res = await fetch(url);
+    const text = await res.text();
+    if (text.trim().startsWith('<')) return null;
+    return parseCSV(text);
+  } catch(e) {
+    return null;
+  }
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g,'').trim());
+  return lines.slice(1).map(line => {
+    const vals = [];
+    let cur = '', inQ = false;
+    for (const ch of line) {
+      if (ch === '"') inQ = !inQ;
+      else if (ch === ',' && !inQ) { vals.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    vals.push(cur);
+    const row = {};
+    headers.forEach((h, i) => row[h] = (vals[i] || '').trim());
+    return row;
+  });
+}
+
+// Parse a value: comma as decimal separator → number
+function pv(v) {
+  if (!v || v === 'Null' || v === '') return null;
+  // European format (comma = decimal, dot = thousands separator): "1.205,78" or "0,73"
+  if (v.includes(',')) return parseFloat(v.replace(/\./g, '').replace(',', '.'));
+  // Standard format (dot = decimal): "0.1086", "1004.50"
+  return parseFloat(v);
+}
+
+function fmtPct(v) { return v == null ? '—' : (v * 100).toFixed(1) + '%'; }
+function fmtNum(v) { return v == null ? '—' : v.toLocaleString('es-ES', {maximumFractionDigits: 0}); }
+function fmtEur(v) { return v == null ? '—' : v.toFixed(0) + ' €'; }
+
+// ══════════════════════════════════════════════════════
+// EMBEDDED DATA (fallback when sheet not yet public)
+// ══════════════════════════════════════════════════════
+const EMBEDDED_ONSITE = [
+["7d","Aitor Martinez","S","0,62","881,33","0,50","15,00","0,51","178,65"],["7d","David Asensio","S","0,67","920,62","0,75","29,00","0,53","215,31"],["7d","Oscar Segoviano","S","0,66","1.205,78","1,00","18,00","0,56","310,06"],["7d","Ildefonso Sanchez Lorite","M","0,68","810,42","0,63","33,00","0,48","172,54"],["7d","Roberto Armada Ruiz","M","0,66","947,86","0,64","51,00","0,51","210,18"],["7d","Abraham Muñoz Jimenez","J","0,66","902,25","0,61","36,00","0,41","191,06"],["7d","Adrian Fernandez","J","0,72","1.008,47","0,60","17,00","0,29","192,63"],["7d","Christian Hajdu","J","0,67","908,08","0,50","51,00","0,43","204,02"],["7d","Christian Lopez","J","0,68","818,57","0,67","44,00","0,46","179,19"],["7d","Eduardo de los Rios","J","0,71","781,61","0,71","51,00","0,49","252,29"],["7d","Felipe Sierra Monedero","J","0,66","788,26","0,71","66,00","0,47","275,26"],["7d","Sergio Jiménez","J","0,66","1.177,32","0,40","37,00","0,49","239,35"],["7d","Javier María Zarza","J","0,67","934,19","0,59","69,00","0,52","247,92"],["7d","Javier Mesto","J","0,67","935,24","0,46","34,00","0,34","183,80"],["7d","Autopricer","AP","0,87","915,92","0,50","25,00","Null","195,71"],
+["30d","Aitor Martinez","S","0,72","949,63","0,60","160,00","0,47","422,06"],["30d","David Asensio","S","0,72","908,67","0,66","188,00","0,57","429,22"],["30d","Oscar Segoviano","S","0,64","976,97","0,61","79,00","0,62","364,06"],["30d","Ildefonso Sanchez Lorite","M","0,72","878,82","0,57","253,00","0,39","347,95"],["30d","Roberto Armada Ruiz","M","0,69","846,31","0,57","354,00","0,46","343,96"],["30d","Abraham Muñoz Jimenez","J","0,74","787,85","0,52","342,00","0,39","343,24"],["30d","Adrian Fernandez","J","0,78","657,42","0,59","72,00","0,32","246,53"],["30d","Christian Hajdu","J","0,69","862,26","0,55","393,00","0,43","347,20"],["30d","Christian Lopez","J","0,73","874,32","0,55","349,00","0,38","355,22"],["30d","Eduardo de los Rios","J","0,76","909,95","0,54","242,00","0,42","402,57"],["30d","Felipe Sierra Monedero","J","0,70","868,94","0,59","367,00","0,48","380,10"],["30d","Sergio Jiménez","J","0,70","817,26","0,60","300,00","0,48","338,64"],["30d","Javier María Zarza","J","0,71","862,60","0,58","511,00","0,45","374,19"],["30d","Javier Mesto","J","0,73","866,14","0,49","307,00","0,38","331,97"],["30d","Autopricer","AP","0,82","851,34","0,47","243,00","Null","357,30"],
+["MTD","Aitor Martinez","S","0,66","957,56","0,38","32,00","0,53","241,28"],["MTD","David Asensio","S","0,68","887,35","0,77","51,00","0,56","275,95"],["MTD","Oscar Segoviano","S","0,64","1.024,32","0,83","28,00","0,60","298,76"],["MTD","Ildefonso Sanchez Lorite","M","0,72","931,31","0,61","93,00","0,42","303,90"],["MTD","Roberto Armada Ruiz","M","0,67","999,64","0,60","87,00","0,49","265,15"],["MTD","Abraham Muñoz Jimenez","J","0,68","904,47","0,50","75,00","0,40","238,86"],["MTD","Adrian Fernandez","J","0,75","921,04","0,44","26,00","0,28","202,94"],["MTD","Christian Hajdu","J","0,70","963,07","0,65","98,00","0,44","296,80"],["MTD","Christian Lopez","J","0,70","961,99","0,61","72,00","0,45","250,95"],["MTD","Eduardo de los Rios","J","0,72","807,82","0,60","78,00","0,49","276,36"],["MTD","Felipe Sierra Monedero","J","0,69","845,24","0,65","123,00","0,48","322,87"],["MTD","Sergio Jiménez","J","0,66","996,76","0,53","67,00","0,50","241,09"],["MTD","Javier María Zarza","J","0,69","933,44","0,69","126,00","0,48","307,08"],["MTD","Javier Mesto","J","0,70","1.056,00","0,48","65,00","0,39","260,00"],["MTD","Autopricer","AP","0,86","929,77","0,51","60,00","Null","284,62"],
+["Previous Month","Aitor Martinez","S","0,75","911,07","0,63","198,00","0,42","518,36"],["Previous Month","David Asensio","S","0,71","884,60","0,63","201,00","0,58","500,86"],["Previous Month","Oscar Segoviano","S","0,64","950,12","0,53","57,00","0,64","416,59"],["Previous Month","Ildefonso Sanchez Lorite","M","0,73","826,94","0,52","312,00","0,34","395,11"],["Previous Month","Roberto Armada Ruiz","M","0,71","786,63","0,57","286,00","0,43","391,95"],["Previous Month","Abraham Muñoz Jimenez","J","0,76","762,78","0,52","366,00","0,36","417,93"],["Previous Month","Adrian Fernandez","J","0,81","508,41","0,65","46,00","0,38","316,04"],["Previous Month","Christian Hajdu","J","0,70","823,41","0,53","454,00","0,43","390,22"],["Previous Month","Christian Lopez","J","0,72","810,51","0,53","367,00","0,35","386,31"],["Previous Month","Eduardo de los Rios","J","0,76","920,90","0,49","298,00","0,39","485,71"],["Previous Month","Felipe Sierra Monedero","J","0,67","855,24","0,57","410,00","0,46","409,64"],["Previous Month","Sergio Jiménez","J","0,74","750,43","0,60","342,00","0,46","411,29"],["Previous Month","Javier María Zarza","J","0,73","802,21","0,54","600,00","0,42","411,04"],["Previous Month","Javier Mesto","J","0,76","801,71","0,49","405,00","0,37","410,48"],["Previous Month","Autopricer","AP","0,80","776,61","0,45","287,00","Null","393,10"],
+["Previous 3 Months","Aitor Martinez","S","0,75","840,10","0,61","736,00","0,46","546,21"],["Previous 3 Months","David Asensio","S","0,69","796,45","0,63","565,00","0,61","478,72"],["Previous 3 Months","Oscar Segoviano","S","0,63","911,29","0,55","82,00","0,66","436,99"],["Previous 3 Months","Ildefonso Sanchez Lorite","M","0,70","663,66","0,50","1.406,00","0,38","381,80"],["Previous 3 Months","Roberto Armada Ruiz","M","0,69","706,79","0,55","1.386,00","0,47","412,99"],["Previous 3 Months","Abraham Muñoz Jimenez","J","0,74","691,77","0,49","1.058,00","0,39","407,97"],["Previous 3 Months","Adrian Fernandez","J","0,81","508,41","0,65","46,00","0,38","316,04"],["Previous 3 Months","Christian Hajdu","J","0,69","722,02","0,54","1.554,00","0,45","415,87"],["Previous 3 Months","Christian Lopez","J","0,72","658,22","0,47","1.341,00","0,39","376,89"],["Previous 3 Months","Eduardo de los Rios","J","0,71","726,02","0,48","1.028,00","0,44","411,21"],["Previous 3 Months","Felipe Sierra Monedero","J","0,66","753,55","0,57","1.500,00","0,50","425,25"],["Previous 3 Months","Sergio Jiménez","J","0,70","663,37","0,55","1.299,00","0,48","398,21"],["Previous 3 Months","Javier María Zarza","J","0,70","709,79","0,53","2.086,00","0,47","413,46"],["Previous 3 Months","Javier Mesto","J","0,73","712,14","0,49","1.370,00","0,41","423,82"],["Previous 3 Months","Autopricer","AP","0,84","700,48","0,48","1.101,00","0,00","474,02"],
+["Previous 6 Months","Aitor Martinez","S","0,73","689,79","0,55","1.508,00","0,46","469,41"],["Previous 6 Months","David Asensio","S","0,70","633,37","0,56","1.458,00","0,61","416,15"],["Previous 6 Months","Oscar Segoviano","S","0,62","891,09","0,53","93,00","0,68","433,88"],["Previous 6 Months","Ildefonso Sanchez Lorite","M","0,71","534,67","0,46","3.151,00","0,39","340,97"],["Previous 6 Months","Roberto Armada Ruiz","M","0,70","574,83","0,49","3.027,00","0,47","368,57"],["Previous 6 Months","Abraham Muñoz Jimenez","J","0,72","529,91","0,44","2.463,00","0,40","344,19"],["Previous 6 Months","Adrian Fernandez","J","0,81","508,41","0,65","46,00","0,38","316,04"],["Previous 6 Months","Christian Hajdu","J","0,69","594,69","0,50","3.280,00","0,46","372,03"],["Previous 6 Months","Christian Lopez","J","0,72","558,63","0,46","2.857,00","0,42","356,97"],["Previous 6 Months","Eduardo de los Rios","J","0,71","556,93","0,44","2.356,00","0,44","352,34"],["Previous 6 Months","Felipe Sierra Monedero","J","0,67","593,91","0,51","3.178,00","0,49","366,07"],["Previous 6 Months","Sergio Jiménez","J","0,70","573,38","0,51","2.418,00","0,48","363,80"],["Previous 6 Months","Javier María Zarza","J","0,70","598,44","0,50","3.823,00","0,48","373,52"],["Previous 6 Months","Javier Mesto","J","0,73","554,37","0,44","3.119,00","0,41","366,79"],["Previous 6 Months","Autopricer","AP","0,85","602,79","0,45","2.128,00","0,00","453,10"]
+];
+
+const EMBEDDED_ONLINE = [
+["7d","Aitor Martinez","S","","0.0240","","","45.00"],["7d","David Asensio","S","","0.0420","","","46.00"],["7d","Oscar Segoviano","S","0.4167","0.0619","","","48.00"],["7d","Ildefonso Sanchez Lorite","M","0.0400","0.0200","","","241.00"],["7d","Roberto Armada Ruiz","M","0.0600","0.0359","","1081.50","251.00"],["7d","Abraham Muñoz Jimenez","J","0.1000","0.0338","","","145.00"],["7d","Adrian Fernandez","J","0.0300","0.0483","","","151.00"],["7d","Christian Hajdu","J","0.0400","0.0284","","","165.00"],["7d","Christian Lopez","J","0.0500","0.0431","","","138.00"],["7d","Eduardo de los Rios","J","0.0500","0.0431","","2501.00","196.00"],["7d","Felipe Sierra Monedero","J","0.0520","0.0376","","","189.00"],["7d","Sergio Jiménez","J","0.0833","0.0470","","","196.00"],["7d","Javier María Zarza","J","0.0500","0.0408","","","177.00"],["7d","Javier Mesto","J","0.0525","0.0260","","","198.00"],["7d","Autopricer","AP","0.0891","0.0878","0.6244","704.93","29382.00"],
+["30d","Aitor Martinez","S","0.1086","0.0775","0.7500","1004.50","210.00"],["30d","David Asensio","S","0.1189","0.0727","0.8067","1084.50","213.00"],["30d","Oscar Segoviano","S","0.1133","0.0791","1.0000","1197.00","89.00"],["30d","Ildefonso Sanchez Lorite","M","0.0414","0.0341","1.0000","2087.67","603.00"],["30d","Roberto Armada Ruiz","M","0.0756","0.0605","0.7353","1518.53","1057.00"],["30d","Abraham Muñoz Jimenez","J","0.0591","0.0460","0.8660","1300.60","640.00"],["30d","Adrian Fernandez","J","0.0673","0.0599","0.5708","631.83","986.00"],["30d","Christian Hajdu","J","0.0750","0.0616","0.8636","1327.82","747.00"],["30d","Christian Lopez","J","0.0724","0.0678","0.8750","1383.25","656.00"],["30d","Eduardo de los Rios","J","0.0829","0.0731","0.3538","2351.92","749.00"],["30d","Felipe Sierra Monedero","J","0.0736","0.0660","0.7324","1292.18","1029.00"],["30d","Sergio Jiménez","J","0.0853","0.0670","0.9340","1424.40","646.00"],["30d","Javier María Zarza","J","0.1162","0.0755","0.8694","1329.36","742.00"],["30d","Javier Mesto","J","0.0700","0.0555","0.8889","1001.67","675.00"],["30d","Autopricer","AP","0.1087","0.1077","0.6079","712.66","121588.00"],
+["Previous 6 Months","Aitor Martinez","S","0.1260","0.1140","0.4565","616.00","628.00"],["Previous 6 Months","David Asensio","S","0.0911","0.0913","0.5691","756.83","688.00"],["Previous 6 Months","Oscar Segoviano","S","0.3600","0.1059","0.5000","943.00","34.00"],["Previous 6 Months","Ildefonso Sanchez Lorite","M","0.0411","0.0380","0.6971","961.44","2978.00"],["Previous 6 Months","Roberto Armada Ruiz","M","0.0644","0.0597","0.5969","1315.68","3363.00"],["Previous 6 Months","Abraham Muñoz Jimenez","J","0.0518","0.0504","0.7146","710.00","1726.00"],["Previous 6 Months","Adrian Fernandez","J","0.0761","0.0607","0.6805","586.95","4531.00"],["Previous 6 Months","Christian Hajdu","J","0.0732","0.0692","0.6625","1067.41","3192.00"],["Previous 6 Months","Christian Lopez","J","0.0715","0.0632","0.6594","1038.39","2586.00"],["Previous 6 Months","Eduardo de los Rios","J","0.0737","0.0719","0.6012","1306.70","2874.00"],["Previous 6 Months","Felipe Sierra Monedero","J","0.0748","0.0711","0.6683","1258.59","3539.00"],["Previous 6 Months","Sergio Jiménez","J","0.0864","0.0679","0.7114","982.12","2145.00"],["Previous 6 Months","Javier María Zarza","J","0.0756","0.0695","0.6911","903.37","3114.00"],["Previous 6 Months","Javier Mesto","J","0.0549","0.0514","0.6205","824.75","2520.00"],["Previous 6 Months","Autopricer","AP","0.1112","0.1106","0.5495","606.76","472093.00"]
+];
+
+// Embedded CTM fallback (subset — Jun 2025, Dec 2025, May 2026)
+const EMBEDDED_CTM = [
+["2025-06","Aitor Martinez","129823","","","0","832.2","","156"],["2025-06","David Asensio","4291","-1025","0.19","0.13","536.38","-1025","8"],["2025-06","Ildefonso Sanchez Lorite","203427","-78972","0.28","0.19","392.72","-797.7","518"],["2025-06","Roberto Armada Ruiz","263267","","","0","769.79","","342"],["2025-06","Abraham Muñoz Jimenez","199031","-1716","0.01","0.01","629.84","-429","316"],["2025-06","Christian Hajdu Losada","221523","-24","0","0","675.38","-24","328"],["2025-06","Christian Lopez Esteban","121387","-57040","0.32","0.19","345.83","-851.34","351"],["2025-06","Eduardo De Los Rios Gomez","244844","-3370","0.01","0.03","680.12","-337","360"],["2025-06","Felipe Sierra Monedero","229238","-48952","0.18","0.13","486.7","-802.49","471"],["2025-06","Sergio Jimenez Gonzalez","186339","-488","0","0.01","595.33","-162.67","313"],["2025-06","Javier Mesto","160487","","","0","710.12","","226"],
+["2025-07","Aitor Martinez","170858","-714","0","0.01","762.76","-238","224"],["2025-07","David Asensio","7611","","","0","543.64","","14"],["2025-07","Ildefonso Sanchez Lorite","331991","-83970","0.2","0.15","497.74","-865.67","667"],["2025-07","Roberto Armada Ruiz","328393","-2709","0.01","0.01","754.93","-903","435"],["2025-07","Abraham Muñoz Jimenez","244594","-17578","0.07","0.08","609.96","-567.03","401"],["2025-07","Christian Hajdu Losada","325993","-1046","0","0.01","654.6","-348.67","498"],["2025-07","Christian Lopez Esteban","156527","-70482","0.31","0.19","382.71","-892.18","409"],["2025-07","Eduardo De Los Rios Gomez","242549","-37912","0.14","0.11","569.36","-789.83","426"],["2025-07","Felipe Sierra Monedero","248079","-67376","0.21","0.15","466.31","-863.79","532"],["2025-07","Sergio Jimenez Gonzalez","106939","-1373","0.01","0.05","524.21","-137.3","204"],["2025-07","Javier Mesto","184344","-132","0","0","734.44","-132","251"],
+["2025-08","Aitor Martinez","153434","-17380","0.1","0.09","661.35","-790","232"],["2025-08","David Asensio","18032","-233","0.01","0.04","721.28","-233","25"],["2025-08","Ildefonso Sanchez Lorite","167607","-87476","0.34","0.2","377.49","-961.27","444"],["2025-08","Roberto Armada Ruiz","188823","-15179","0.07","0.07","631.52","-722.81","299"],["2025-08","Abraham Muñoz Jimenez","202847","-25026","0.11","0.12","581.22","-595.86","349"],["2025-08","Christian Hajdu Losada","187570","-6448","0.03","0.05","580.71","-429.87","323"],["2025-08","Christian Lopez Esteban","151629","-37174","0.2","0.13","489.13","-953.18","310"],["2025-08","Eduardo De Los Rios Gomez","206151","-58698","0.22","0.14","523.23","-1029.79","394"],["2025-08","Felipe Sierra Monedero","118881","-68160","0.36","0.23","334.88","-831.22","355"],["2025-08","Sergio Jimenez Gonzalez","242678","-11690","0.05","0.08","627.07","-377.1","387"],["2025-08","Javier María Zarza","90212","","","0","771.04","","117"],["2025-08","Javier Mesto","232176","-11950","0.05","0.06","756.27","-663.89","307"],
+["2025-09","Aitor Martinez","163968","-36209","0.18","0.17","528.93","-683.19","310"],["2025-09","David Asensio","23570","-281","0.01","0.06","673.43","-140.5","35"],["2025-09","Oscar Segoviano Prisuelos","9901","","","0","900.09","","11"],["2025-09","Ildefonso Sanchez Lorite","210656","-83191","0.28","0.22","400.49","-729.75","526"],["2025-09","Roberto Armada Ruiz","273280","-39270","0.13","0.14","530.64","-553.1","515"],["2025-09","Abraham Muñoz Jimenez","260433","-53940","0.17","0.17","484.98","-586.3","537"],["2025-09","Christian Hajdu Losada","280181","-35667","0.11","0.17","503.02","-375.44","557"],["2025-09","Christian Lopez Esteban","134001","-60177","0.31","0.21","357.34","-761.73","375"],["2025-09","Eduardo De Los Rios Gomez","126511","-65500","0.34","0.22","341.92","-798.78","370"],["2025-09","Felipe Sierra Monedero","318836","-55427","0.15","0.14","561.33","-684.28","568"],["2025-09","Sergio Jimenez Gonzalez","229156","-23961","0.09","0.12","501.44","-435.65","457"],["2025-09","Javier María Zarza","310671","-223","0","0.01","675.37","-74.33","460"],["2025-09","Javier Mesto","122985","-45940","0.27","0.19","422.63","-820.36","291"],
+["2025-10","Aitor Martinez","180676","-24262","0.12","0.11","584.71","-693.2","309"],["2025-10","David Asensio","95359","-2885","0.03","0.03","756.82","-721.25","126"],["2025-10","Oscar Segoviano Prisuelos","4859","","","0","607.38","","8"],["2025-10","Ildefonso Sanchez Lorite","233913","-45015","0.16","0.15","532.83","-703.36","439"],["2025-10","Roberto Armada Ruiz","316198","-58455","0.16","0.13","552.79","-811.88","572"],["2025-10","Abraham Muñoz Jimenez","257046","-51739","0.17","0.17","493.37","-581.34","521"],["2025-10","Christian Hajdu Losada","246543","-58806","0.19","0.19","478.72","-594","515"],["2025-10","Christian Lopez Esteban","216309","-63405","0.23","0.18","506.58","-845.4","427"],["2025-10","Eduardo De Los Rios Gomez","125631","-75887","0.38","0.25","322.13","-782.34","390"],["2025-10","Felipe Sierra Monedero","319062","-26476","0.08","0.11","594.16","-434.03","537"],["2025-10","Sergio Jimenez Gonzalez","221816","-24067","0.1","0.12","529.39","-471.9","419"],["2025-10","Javier María Zarza","356509","-6477","0.02","0.04","638.91","-259.08","558"],["2025-10","Javier Mesto","229052","-37179","0.14","0.13","544.07","-663.91","421"],
+["2025-11","Aitor Martinez","62824","-21608","0.26","0.22","472.36","-745.1","133"],["2025-11","David Asensio","164705","-1611","0.01","0.01","807.38","-805.5","204"],["2025-11","Oscar Segoviano Prisuelos","0","","","0","0","","1"],["2025-11","Ildefonso Sanchez Lorite","220664","-36373","0.14","0.12","564.36","-790.72","391"],["2025-11","Roberto Armada Ruiz","239276","-57388","0.19","0.15","503.74","-819.83","475"],["2025-11","Abraham Muñoz Jimenez","192731","-48156","0.2","0.19","487.93","-642.08","395"],["2025-11","Christian Hajdu Losada","208634","-55076","0.21","0.18","469.9","-679.95","444"],["2025-11","Christian Lopez Esteban","194575","-43720","0.18","0.11","520.25","-1016.74","374"],["2025-11","Eduardo De Los Rios Gomez","185854","-55096","0.23","0.17","481.49","-860.88","386"],["2025-11","Felipe Sierra Monedero","272871","-48354","0.15","0.14","568.48","-732.64","480"],["2025-11","Sergio Jimenez Gonzalez","129722","-39843","0.23","0.16","433.85","-813.12","299"],["2025-11","Javier María Zarza","212298","-20075","0.09","0.12","491.43","-401.5","432"],["2025-11","Javier Mesto","172291","-39898","0.19","0.12","523.68","-997.45","329"],
+["2025-12","Aitor Martinez","116484","-22731","0.16","0.1","573.81","-1082.43","203"],["2025-12","David Asensio","129722","-9815","0.07","0.04","623.66","-1226.88","208"],["2025-12","Oscar Segoviano Prisuelos","-913","-913","","1","-913","-913","1"],["2025-12","Ildefonso Sanchez Lorite","126369","-49999","0.28","0.14","392.45","-1136.34","322"],["2025-12","Roberto Armada Ruiz","154414","-60449","0.28","0.15","386.04","-1007.48","400"],["2025-12","Abraham Muñoz Jimenez","122724","-67862","0.36","0.16","356.76","-1256.7","344"],["2025-12","Christian Hajdu Losada","190618","-83416","0.3","0.15","430.29","-1245.01","443"],["2025-12","Christian Lopez Esteban","160034","-75419","0.32","0.15","389.38","-1256.98","411"],["2025-12","Eduardo De Los Rios Gomez","77851","-68405","0.47","0.19","286.22","-1290.66","272"],["2025-12","Felipe Sierra Monedero","127284","-69421","0.35","0.14","394.07","-1542.69","323"],["2025-12","Sergio Jimenez Gonzalez","139114","-56579","0.29","0.17","429.36","-1010.34","324"],["2025-12","Javier María Zarza","205244","-26865","0.12","0.09","505.53","-767.57","406"],["2025-12","Javier Mesto","156256","-25416","0.14","0.1","504.05","-847.2","310"],
+["2026-01","Aitor Martinez","121380","-18602","0.13","0.08","551.73","-1094.24","220"],["2026-01","David Asensio","129787","-14246","0.1","0.05","506.98","-1017.57","256"],["2026-01","Oscar Segoviano Prisuelos","827","-158","0.16","0.5","413.5","-158","2"],["2026-01","Ildefonso Sanchez Lorite","189214","-52935","0.22","0.1","428.09","-1176.33","442"],["2026-01","Roberto Armada Ruiz","247513","-79060","0.24","0.08","436.53","-1718.7","567"],["2026-01","Abraham Muñoz Jimenez","222680","-32938","0.13","0.09","487.26","-823.45","457"],["2026-01","Christian Hajdu Losada","180985","-57146","0.24","0.11","396.03","-1166.24","457"],["2026-01","Christian Lopez Esteban","139801","-49951","0.26","0.12","383.02","-1110.02","365"],["2026-01","Eduardo De Los Rios Gomez","205159","-44731","0.18","0.09","504.08","-1177.13","407"],["2026-01","Felipe Sierra Monedero","242529","-47407","0.16","0.07","487.99","-1281.27","497"],["2026-01","Sergio Jimenez Gonzalez","168602","-40500","0.19","0.09","447.22","-1191.18","377"],["2026-01","Javier María Zarza","263797","-24144","0.08","0.07","526.54","-670.67","501"],["2026-01","Javier Mesto","224508","-35826","0.14","0.1","498.91","-778.83","450"],
+["2026-02","Aitor Martinez","89161","-26768","0.23","0.21","430.73","-622.51","207"],["2026-02","David Asensio","129278","-36295","0.22","0.18","421.1","-648.13","307"],["2026-02","Oscar Segoviano Prisuelos","2936","","","0","734","","4"],["2026-02","Ildefonso Sanchez Lorite","215363","-86568","0.29","0.22","379.16","-703.8","568"],["2026-02","Roberto Armada Ruiz","143857","-84124","0.37","0.27","285.43","-614.04","504"],["2026-02","Abraham Muñoz Jimenez","93195","-81496","0.47","0.3","223.49","-646.79","417"],["2026-02","Christian Hajdu Losada","208467","-94083","0.31","0.22","379.03","-790.61","550"],["2026-02","Christian Lopez Esteban","181310","-81662","0.31","0.25","354.81","-648.11","511"],["2026-02","Eduardo De Los Rios Gomez","141965","-82895","0.37","0.25","332.47","-789.48","427"],["2026-02","Felipe Sierra Monedero","195652","-83230","0.3","0.21","371.26","-749.82","527"],["2026-02","Sergio Jimenez Gonzalez","55436","-74845","0.57","0.35","178.83","-699.49","310"],["2026-02","Javier María Zarza","255507","-69000","0.21","0.22","421.63","-514.93","606"],["2026-02","Javier Mesto","190436","-86040","0.31","0.22","353.97","-723.03","538"],
+["2026-03","Aitor Martinez","73186","-18400","0.2","0.17","472.17","-707.69","155"],["2026-03","David Asensio","117809","-17719","0.13","0.1","507.8","-738.29","232"],["2026-03","Oscar Segoviano Prisuelos","7234","","","0","803.78","","9"],["2026-03","Ildefonso Sanchez Lorite","272359","-68222","0.2","0.15","438.58","-725.77","621"],["2026-03","Roberto Armada Ruiz","233399","-73772","0.24","0.15","421.3","-888.82","554"],["2026-03","Abraham Muñoz Jimenez","68425","-60548","0.47","0.29","207.98","-624.21","329"],["2026-03","Christian Hajdu Losada","253331","-73859","0.23","0.15","420.12","-839.31","603"],["2026-03","Christian Lopez Esteban","226568","-85365","0.27","0.17","401.01","-908.14","565"],["2026-03","Eduardo De Los Rios Gomez","177774","-52190","0.23","0.17","428.37","-724.86","415"],["2026-03","Felipe Sierra Monedero","295844","-62034","0.17","0.15","481.83","-667.03","614"],["2026-03","Sergio Jimenez Gonzalez","212218","-44382","0.17","0.15","484.52","-693.47","438"],["2026-03","Javier María Zarza","364931","-51307","0.12","0.12","531.97","-610.8","686"],["2026-03","Javier Mesto","247218","-82064","0.25","0.19","402.64","-713.6","614"],
+["2026-04","Aitor Martinez","165332","-21607","0.12","0.1","631.04","-864.28","262"],["2026-04","David Asensio","54698","-15808","0.22","0.15","379.85","-718.55","144"],["2026-04","Oscar Segoviano Prisuelos","6789","-1221","0.15","0.08","565.75","-1221","12"],["2026-04","Ildefonso Sanchez Lorite","197684","-53124","0.21","0.16","399.36","-681.08","495"],["2026-04","Roberto Armada Ruiz","230686","-47077","0.17","0.13","497.17","-811.67","464"],["2026-04","Abraham Muñoz Jimenez","163351","-57412","0.26","0.17","418.85","-844.29","390"],["2026-04","Christian Hajdu Losada","278744","-42664","0.13","0.12","519.08","-688.13","537"],["2026-04","Christian Lopez Esteban","162727","-43192","0.21","0.14","402.79","-771.29","404"],["2026-04","Eduardo De Los Rios Gomez","131135","-57358","0.3","0.19","370.44","-869.06","354"],["2026-04","Felipe Sierra Monedero","243731","-67767","0.22","0.12","476.04","-1148.59","512"],["2026-04","Sergio Jimenez Gonzalez","203642","-41482","0.17","0.09","531.7","-1257.03","383"],["2026-04","Javier María Zarza","282925","-49552","0.15","0.12","480.35","-718.14","589"],["2026-04","Javier Mesto","165828","-52643","0.24","0.15","394.83","-822.55","420"],
+["2026-05","Aitor Martinez","164125","-18797","0.1","0.08","681.02","-989.32","241"],["2026-05","David Asensio","126264","-22615","0.15","0.09","576.55","-1130.75","219"],["2026-05","Oscar Segoviano Prisuelos","23042","","","0","822.93","","28"],["2026-05","Ildefonso Sanchez Lorite","193911","-66101","0.25","0.16","410.83","-869.75","472"],["2026-05","Roberto Armada Ruiz","172251","-46756","0.21","0.15","411.1","-754.13","419"],["2026-05","Abraham Muñoz Jimenez","199523","-37787","0.16","0.12","486.64","-755.74","410"],["2026-05","Adrian Fernandez Romero","10371","","","0","576.17","","18"],["2026-05","Christian Hajdu Losada","206618","-56009","0.21","0.14","452.12","-861.68","457"],["2026-05","Christian Lopez Esteban","211814","-49798","0.19","0.17","448.76","-630.35","472"],["2026-05","Eduardo De Los Rios Gomez","163968","-53646","0.25","0.17","440.77","-851.52","372"],["2026-05","Felipe Sierra Monedero","242801","-57747","0.19","0.14","493.5","-824.96","492"],["2026-05","Sergio Jimenez Gonzalez","176558","-48822","0.22","0.13","418.38","-871.82","422"],["2026-05","Javier María Zarza","313433","-62482","0.17","0.12","491.27","-844.35","638"],["2026-05","Javier Mesto","210778","-54980","0.21","0.16","482.33","-785.43","437"]
+];
+
+// Convert raw array row → structured object
+function rowToObj(arr, isOnsite) {
+  const cols = isOnsite ? ONSITE_COLS : ONLINE_COLS;
+  const obj = { Timeframe: arr[0], Pricer: arr[1], Level: arr[2] };
+  cols.forEach((c, i) => {
+    const raw = arr[3 + i] || '';
+    obj[c] = pv(raw);
+  });
+  return obj;
+}
+
+function sheetRowToObj(row, isOnsite) {
+  const cols = isOnsite ? ONSITE_COLS : ONLINE_COLS;
+  const obj = { Timeframe: row['Timeframe'], Pricer: row['Pricer'], Level: row['Level'] };
+  const headerCols = isOnsite
+    ? ['% Conversion Rate','PPU','% Sold in 7d','# Sold','% Negative Delta','€ Profit per Priced Car']
+    : ['% Booking Rate','% Online to Onsite Conversion','% Sold in 7d','PPU','# Self Evaluations Priced'];
+  cols.forEach((display, i) => {
+    obj[display] = pv(row[headerCols[i]] || '');
+  });
+  return obj;
+}
+
+function getRows(view, tf, incSeniors = true, incAP = true) {
+  return DATA[view]
+    .filter(r => r.Timeframe === tf)
+    .filter(r => incSeniors || r.Level !== 'S')
+    .filter(r => incAP || r.Level !== 'AP');
+}
+
+// ══════════════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════════════
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (el) el.classList.add('active'); else event.target.classList.add('active');
+  if (name === 'individual') renderIndividual();
+  if (name === 'team') renderTeam();
+  if (name === 'comparison') renderComparison();
+  if (name === 'ctm') { populateCTMSelects(); renderCTM(); }
+}
+
+function toggleClass(id, cls) {
+  document.getElementById(id).classList.toggle(cls);
+}
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+function badgeHTML(level) {
+  return `<span class="badge badge-${level}">${level}</span>`;
+}
+
+function bar(val, max, cls) {
+  const pct = max > 0 ? Math.min(100, (val / max) * 100) : 0;
+  return `<div class="bar-wrap"><div class="bar ${cls}" style="width:${pct}px"></div><span>${typeof val === 'number' ? (val < 2 ? fmtPct(val) : fmtNum(val)) : '—'}</span></div>`;
+}
+
+function populatePricerSelect(selectId, view, includeTeamAvg = false) {
+  const sel = document.getElementById(selectId);
+  const pricers = [...new Set(DATA[view].map(r => r.Pricer))].filter(p => p !== 'Autopricer').sort();
+  const cur = sel.value;
+  const teamOpt = includeTeamAvg
+    ? `<option value="__TEAM_AVG__" ${cur==='__TEAM_AVG__'?'selected':''}>⌀ Team Average (M+J)</option>`
+    : '';
+  // If current value no longer valid in this view, reset
+  const validVals = ['__TEAM_AVG__', ...pricers];
+  if (cur && !validVals.includes(cur)) sel.value = '';
+  sel.innerHTML = teamOpt + pricers.map(p => `<option value="${p}" ${p===cur?'selected':''}>${p}</option>`).join('');
+}
+
+function getTeamAvgRow(view, tf, cols) {
+  // Average of M + J pricers (exclude Seniors and Autopricer)
+  const rows = DATA[view].filter(r => r.Timeframe === tf && r.Level !== 'S' && r.Level !== 'AP');
+  const avg = { Pricer: '⌀ Team Average', Level: 'AVG', Timeframe: tf };
+  cols.forEach(c => {
+    const vals = rows.map(r => r[c]).filter(v => v != null);
+    avg[c] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  });
+  return avg;
+}
+
+// ══════════════════════════════════════════════════════
+// INDIVIDUAL PAGE
+// ══════════════════════════════════════════════════════
+function renderIndividual() {
+  const view = document.getElementById('ind-view').value;
+  const tf   = document.getElementById('ind-tf').value;
+  const isOnsite = view === 'Onsite';
+  const cols = isOnsite ? ONSITE_COLS : ONLINE_COLS;
+
+  populatePricerSelect('ind-pricer', view);
+  const pricer = document.getElementById('ind-pricer').value;
+  if (!pricer) return;
+
+  const row = DATA[view].find(r => r.Pricer === pricer && r.Timeframe === tf);
+  const allTF = DATA[view].filter(r => r.Pricer === pricer);
+
+  // KPIs
+  const kpiEl = document.getElementById('ind-kpis');
+  kpiEl.innerHTML = '';
+  document.getElementById('ind-title').textContent = `${pricer} — ${tf} — ${view}`;
+
+  if (row) {
+    const kpiDefs = isOnsite
+      ? [['% CR', fmtPct, '#3b82f6'], ['PPU', fmtEur, '#f59e0b'], ['% Sold 7d', fmtPct, '#10b981'], ['# Sold', fmtNum, '#6366f1'], ['% Neg Delta', fmtPct, '#ef4444'], ['€ Profit/Car', fmtEur, '#8b5cf6']]
+      : [['% Booking Rate', fmtPct, '#3b82f6'], ['% OtO Conv', fmtPct, '#10b981'], ['% Sold 7d', fmtPct, '#f59e0b'], ['PPU', fmtEur, '#6366f1'], ['# Self Evals', fmtNum, '#8b5cf6']];
+    kpiDefs.forEach(([col, fmt, color]) => {
+      const val = row[col];
+      kpiEl.innerHTML += `<div class="kpi"><div class="kpi-label">${col}</div><div class="kpi-val" style="color:${color}">${fmt(val)}</div><div class="kpi-sub">${badgeHTML(row.Level)} ${view}</div></div>`;
+    });
+  } else {
+    kpiEl.innerHTML = '<div class="empty">No data for this selection.</div>';
+  }
+
+  // Chart 1: evolution across timeframes
+  destroyChart('ind-chart-tf');
+  const ctx1 = document.getElementById('ind-chart-tf').getContext('2d');
+  const mainCol = isOnsite ? '% CR' : '% Booking Rate';
+  const TF_EVOLUTION = ['Previous 6 Months', 'Previous 3 Months', '30d', '7d'];
+  const TF_LABELS    = ['Prev 6M', 'Prev 3M', '30d', '7d'];
+  const tfVals = t => allTF.find(x => x.Timeframe === t);
+  const crVals   = TF_EVOLUTION.map(t => { const r = tfVals(t); return r && r[mainCol]     != null ? +(r[mainCol]     * 100).toFixed(1) : null; });
+  const sold7Vals= TF_EVOLUTION.map(t => { const r = tfVals(t); return r && r['% Sold 7d'] != null ? +(r['% Sold 7d'] * 100).toFixed(1) : null; });
+  const ppuVals  = TF_EVOLUTION.map(t => { const r = tfVals(t); return r ? r.PPU : null; });
+  chartInstances['ind-chart-tf'] = new Chart(ctx1, {
+    type: 'line',
+    data: { labels: TF_LABELS, datasets: [
+      { label: mainCol + ' (%)',  data: crVals,    borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.12)',  fill: true, tension: 0.3, pointRadius: 5, yAxisID: 'y1' },
+      { label: '% Sold 7d (%)',   data: sold7Vals, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.0)',  fill: false, tension: 0.3, pointRadius: 5, borderDash: [5,3], yAxisID: 'y1' },
+      { label: 'PPU (€)',         data: ppuVals,   borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.0)', fill: false, tension: 0.3, pointRadius: 5, yAxisID: 'y2' }
+    ]},
+    options: { responsive: true, interaction: { mode: 'index' }, plugins: { legend: { position: 'bottom' } },
+      scales: {
+        y1: { position: 'left',  title: { display: true, text: '%' }, ticks: { callback: v => v + '%' } },
+        y2: { position: 'right', title: { display: true, text: '€' }, grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+
+  // Chart 2: vs team average
+  destroyChart('ind-chart-vs');
+  const ctx2 = document.getElementById('ind-chart-vs').getContext('2d');
+  const teamRows = getRows(view, tf, true, false).filter(r => r.Pricer !== pricer);
+  const radarCols = isOnsite
+    ? ['% CR','% Sold 7d','% Neg Delta']
+    : ['% Booking Rate','% OtO Conv','% Sold 7d'];
+  const teamAvg = radarCols.map(c => { const vals = teamRows.map(r => r[c]).filter(v => v != null); return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0; });
+  const pricer_ = radarCols.map(c => row ? (row[c] || 0) : 0);
+  chartInstances['ind-chart-vs'] = new Chart(ctx2, {
+    type: 'radar',
+    data: { labels: radarCols.map(l => l.replace('% ','')),
+      datasets: [
+        { label: pricer, data: pricer_.map(v => +(v*100).toFixed(1)), backgroundColor: 'rgba(59,130,246,0.2)', borderColor: '#3b82f6', pointRadius: 4 },
+        { label: 'Team Avg', data: teamAvg.map(v => +(v*100).toFixed(1)), backgroundColor: 'rgba(156,163,175,0.15)', borderColor: '#9ca3af', pointRadius: 3, borderDash: [4,4] }
+      ]},
+    options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { r: { beginAtZero: true, ticks: { callback: v => v + '%' } } } }
+  });
+
+  // All metrics table
+  const tableEl = document.getElementById('ind-table');
+  if (!row) { tableEl.innerHTML = '<div class="empty">No data.</div>'; return; }
+  tableEl.innerHTML = `<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>${
+    cols.map(c => `<tr><td>${c}</td><td><strong>${
+      c.includes('%') ? fmtPct(row[c]) : c.includes('€') ? fmtEur(row[c]) : fmtNum(row[c])
+    }</strong></td></tr>`).join('')
+  }</tbody></table>`;
+}
+
+// ══════════════════════════════════════════════════════
+// TEAM PAGE
+// ══════════════════════════════════════════════════════
+let teamSortCol = null, teamSortAsc = false;
+
+function renderTeam() {
+  const view      = document.getElementById('team-view').value;
+  const tf        = document.getElementById('team-tf').value;
+  const incS      = document.getElementById('inc-seniors').checked;
+  const incAP     = document.getElementById('inc-ap').checked;
+  const isOnsite  = view === 'Onsite';
+  const cols      = isOnsite ? ONSITE_COLS : ONLINE_COLS;
+
+  let rows = getRows(view, tf, incS, incAP);
+  if (!rows.length) { document.getElementById('team-table').innerHTML = '<div class="empty">No data.</div>'; return; }
+
+  // Sort
+  if (teamSortCol) {
+    rows = [...rows].sort((a, b) => {
+      const av = a[teamSortCol] ?? -Infinity, bv = b[teamSortCol] ?? -Infinity;
+      return teamSortAsc ? av - bv : bv - av;
+    });
+  }
+
+  // Table
+  const mainCol = isOnsite ? '% CR' : '% Booking Rate';
+  const maxPPU  = Math.max(...rows.map(r => r.PPU || 0));
+  const maxSold = Math.max(...rows.map(r => r['# Sold'] || r['# Self Evals'] || 0));
+  const sortHdr = (col) => {
+    const active = teamSortCol === col;
+    const arrow  = active ? (teamSortAsc ? ' ↑' : ' ↓') : '';
+    return `<th class="sortable" data-col="${col}">${col}${arrow}</th>`;
+  };
+
+  const html = `<table><thead><tr>
+    <th>Pricer</th><th>Level</th>
+    ${cols.map(c => sortHdr(c)).join('')}
+  </tr></thead><tbody>${
+    rows.map(r => {
+      const cr  = r[mainCol];
+      const ppu = r.PPU;
+      const s7  = r['% Sold 7d'];
+      return `<tr>
+        <td><strong>${r.Pricer}</strong></td>
+        <td>${badgeHTML(r.Level)}</td>
+        ${isOnsite ? `
+          <td>${bar(cr, 1, 'bar-cr')}</td>
+          <td>${bar(ppu, maxPPU, 'bar-ppu')}</td>
+          <td>${bar(s7, 1, 'bar-s7')}</td>
+          <td>${fmtNum(r['# Sold'])}</td>
+          <td>${bar(r['% Neg Delta'], 1, 'bar-nd')}</td>
+          <td>${fmtEur(r['€ Profit/Car'])}</td>
+        ` : `
+          <td>${bar(r['% Booking Rate'], 1, 'bar-cr')}</td>
+          <td>${bar(r['% OtO Conv'], 1, 'bar-s7')}</td>
+          <td>${bar(s7, 1, 'bar-s7')}</td>
+          <td>${bar(ppu, maxPPU, 'bar-ppu')}</td>
+          <td>${fmtNum(r['# Self Evals'])}</td>
+        `}
+      </tr>`;
+    }).join('')
+  }</tbody></table>`;
+  document.getElementById('team-table').innerHTML = html;
+
+  // Charts
+  destroyChart('team-chart-ppu'); destroyChart('team-chart-cr');
+  const labels = rows.map(r => r.Pricer.split(' ')[0]);
+  const colors = rows.map(r => LEVEL_BG[r.Level]);
+  const borders = rows.map(r => LEVEL_COLOR[r.Level]);
+
+  const ctx1 = document.getElementById('team-chart-ppu').getContext('2d');
+  chartInstances['team-chart-ppu'] = new Chart(ctx1, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'PPU (€)', data: rows.map(r => r.PPU), backgroundColor: colors, borderColor: borders, borderWidth: 1.5 }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: false } } }
+  });
+
+  const ctx2 = document.getElementById('team-chart-cr').getContext('2d');
+  const crCol = isOnsite ? '% CR' : '% Booking Rate';
+  chartInstances['team-chart-cr'] = new Chart(ctx2, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: crCol, data: rows.map(r => r[crCol] != null ? +(r[crCol]*100).toFixed(1) : null), backgroundColor: colors, borderColor: borders, borderWidth: 1.5 }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => v+'%' } } } }
+  });
+}
+
+function sortTeam(col) {
+  if (teamSortCol === col) teamSortAsc = !teamSortAsc;
+  else { teamSortCol = col; teamSortAsc = false; }
+  renderTeam();
+}
+
+// ══════════════════════════════════════════════════════
+// COMPARISON PAGE
+// ══════════════════════════════════════════════════════
+function renderComparison() {
+  const view     = document.getElementById('cmp-view').value;
+  const tf       = document.getElementById('cmp-tf').value;
+  const isOnsite = view === 'Onsite';
+  const cols     = isOnsite ? ONSITE_COLS : ONLINE_COLS;
+
+  populatePricerSelect('cmp-a', view, true);
+  populatePricerSelect('cmp-b', view, true);
+  // Try to set B to something different from A
+  const selA = document.getElementById('cmp-a');
+  const selB = document.getElementById('cmp-b');
+  if (selA.value === selB.value) {
+    const opts = Array.from(selB.options);
+    const other = opts.find(o => o.value !== selA.value);
+    if (other) selB.value = other.value;
+  }
+
+  const pA = selA.value, pB = selB.value;
+  const rA = pA === '__TEAM_AVG__' ? getTeamAvgRow(view, tf, cols)
+           : DATA[view].find(r => r.Pricer === pA && r.Timeframe === tf);
+  const rB = pB === '__TEAM_AVG__' ? getTeamAvgRow(view, tf, cols)
+           : DATA[view].find(r => r.Pricer === pB && r.Timeframe === tf);
+
+  if (!rA || !rB) { document.getElementById('cmp-content').innerHTML = '<div class="empty">No data for this selection.</div>'; return; }
+
+  const labelA = pA === '__TEAM_AVG__' ? '⌀ Team Avg' : pA;
+  const labelB = pB === '__TEAM_AVG__' ? '⌀ Team Avg' : pB;
+
+  // Determine which metric is "better" (higher = better except Neg Delta)
+  const higherBetter = col => !col.toLowerCase().includes('neg') && !col.toLowerCase().includes('loss');
+
+  const metricsHTML = cols.map(col => {
+    const va = rA[col], vb = rB[col];
+    const fmt = col.includes('%') ? fmtPct : col.includes('€') ? fmtEur : fmtNum;
+    let clsA = '', clsB = '';
+    if (va != null && vb != null) {
+      const aBetter = higherBetter(col) ? va >= vb : va <= vb;
+      clsA = aBetter ? 'better' : 'worse';
+      clsB = aBetter ? 'worse'  : 'better';
+      if (Math.abs(va - vb) < 0.0001) clsA = clsB = '';
+    }
+    return `<tr>
+      <td class="cmp-val ${clsA}">${fmt(va)}</td>
+      <td class="cmp-metric" style="text-align:center;padding:6px 8px">${col}</td>
+      <td class="cmp-val ${clsB}" style="text-align:right">${fmt(vb)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('cmp-content').innerHTML = `
+    <div class="card" style="overflow:hidden">
+      <div class="card-header" style="justify-content:space-between">
+        <span>${badgeHTML(rA.Level)} ${labelA}</span>
+        <span style="color:var(--muted);font-weight:400">${tf} · ${view}</span>
+        <span>${badgeHTML(rB.Level)} ${labelB}</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="width:30%">${labelA.split(' ')[0]}</th>
+          <th style="text-align:center;width:40%">Metric</th>
+          <th style="text-align:right;width:30%">${labelB.split(' ')[0]}</th>
+        </tr></thead>
+        <tbody>${metricsHTML}</tbody>
+      </table>
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════
+// CTM & LOSSES
+// ══════════════════════════════════════════════════════
+let CTM_DATA = []; // [{Month, Pricer, 'Total CTM', 'Total Loss', 'Ratio loss:profit', 'Loss Share', 'Avg CTM', 'Avg Loss', 'Cars Sold'}]
+let ctmChart = null;
+
+const ROSTER_LEVELS = {
+  'Aitor Martinez':'S','David Asensio':'S','Oscar Segoviano Prisuelos':'S',
+  'Ildefonso Sanchez Lorite':'M','Roberto Armada Ruiz':'M',
+  'Abraham Muñoz Jimenez':'J','Adrian Fernandez Romero':'J','Christian Hajdu Losada':'J',
+  'Christian Lopez Esteban':'J','Eduardo De Los Rios Gomez':'J','Felipe Sierra Monedero':'J',
+  'Sergio Jimenez Gonzalez':'J','Javier María Zarza':'J','Javier Mesto':'J'
+};
+
+function pvCTM(v) {
+  if (!v || v === 'Null' || v === '') return null;
+  return parseFloat(v.replace(/,/g,''));
+}
+
+function sheetRowToCTM(r) {
+  return {
+    Month: r['Month'], Pricer: r['Pricer'],
+    ctm:    pvCTM(r['Total CTM']),
+    loss:   pvCTM(r['Total Loss']),
+    ratio:  pvCTM(r['Ratio loss:profit']),
+    lshare: pvCTM(r['Loss Share']),
+    avgCtm: pvCTM(r['Avg CTM']),
+    avgLoss:pvCTM(r['Avg Loss']),
+    sold:   pvCTM(r['Cars Sold']),
+    level:  ROSTER_LEVELS[r['Pricer']] || 'J'
+  };
+}
+
+function populateCTMSelects() {
+  const pricers = [...new Set(CTM_DATA.map(r => r.Pricer))].sort();
+  const months  = [...new Set(CTM_DATA.map(r => r.Month))].sort();
+  const ps = document.getElementById('ctm-pricer');
+  const cur = ps.value;
+  ps.innerHTML = pricers.map(p => `<option value="${p}" ${p===cur?'selected':''}>${p}</option>`).join('');
+
+  const fromSel = document.getElementById('ctm-from');
+  const toSel   = document.getElementById('ctm-to');
+  const curFrom = fromSel.value || months[0];
+  const curTo   = toSel.value   || months[months.length-1];
+  const monthOpts = months.map(m => `<option value="${m}">${m}</option>`).join('');
+  fromSel.innerHTML = monthOpts;
+  toSel.innerHTML   = monthOpts;
+  fromSel.value = months.includes(curFrom) ? curFrom : months[0];
+  toSel.value   = months.includes(curTo)   ? curTo   : months[months.length-1];
+}
+
+function renderCTM() {
+  const pricer    = document.getElementById('ctm-pricer').value;
+  const fromM     = document.getElementById('ctm-from').value;
+  const toM       = document.getElementById('ctm-to').value;
+  const incSeniors= document.getElementById('ctm-inc-seniors').checked;
+  if (!pricer) return;
+
+  // Filter data for selected pricer & range
+  const rows = CTM_DATA.filter(r => r.Pricer === pricer && r.Month >= fromM && r.Month <= toM)
+                        .sort((a,b) => a.Month.localeCompare(b.Month));
+
+  document.getElementById('ctm-range-label').textContent = `${pricer} · ${fromM} → ${toM}`;
+
+  // ── KPI totals ──
+  const totalCTM  = rows.reduce((s,r) => s + (r.ctm  || 0), 0);
+  const totalLoss = rows.reduce((s,r) => s + (r.loss || 0), 0);
+  const lossRatio = totalCTM > 0 ? Math.abs(totalLoss) / Math.abs(totalCTM) : null;
+  const kpiEl = document.getElementById('ctm-kpis');
+  kpiEl.innerHTML = `
+    <div class="kpi"><div class="kpi-label">Total CTM</div><div class="kpi-val" style="color:#10b981">${totalCTM >= 0 ? '+' : ''}${Math.round(totalCTM).toLocaleString('es-ES')} €</div><div class="kpi-sub">${fromM} – ${toM}</div></div>
+    <div class="kpi"><div class="kpi-label">Total Loss</div><div class="kpi-val" style="color:${totalLoss < 0 ? '#ef4444' : '#10b981'}">${Math.round(totalLoss).toLocaleString('es-ES')} €</div><div class="kpi-sub">${rows.length} months</div></div>
+    <div class="kpi"><div class="kpi-label">% Loss / CTM</div><div class="kpi-val" style="color:${lossRatio > 0.2 ? '#ef4444' : lossRatio > 0.1 ? '#f59e0b' : '#10b981'}">${lossRatio != null ? (lossRatio*100).toFixed(1)+'%' : '—'}</div><div class="kpi-sub">ratio</div></div>`;
+
+  // ── YTD 2026 vs team avg ──
+  const ytdMonths = CTM_DATA.map(r=>r.Month).filter(m=>m.startsWith('2026')).filter((v,i,a)=>a.indexOf(v)===i).sort();
+  const pricer26 = CTM_DATA.filter(r=>r.Pricer===pricer && r.Month.startsWith('2026'));
+  const ytdCTM   = pricer26.reduce((s,r)=>s+(r.ctm||0),0);
+  const ytdLoss  = pricer26.reduce((s,r)=>s+(r.loss||0),0);
+  const ytdRatio = ytdCTM !== 0 ? Math.abs(ytdLoss)/Math.abs(ytdCTM) : null;
+
+  // Team avg (M+J, exclude Seniors unless toggled)
+  const teamRows26 = CTM_DATA.filter(r => r.Month.startsWith('2026') && r.Pricer !== pricer
+    && (incSeniors || r.level !== 'S') && r.level !== 'AP');
+  const teamPricers26 = [...new Set(teamRows26.map(r=>r.Pricer))];
+  const teamAvgCTM  = teamPricers26.length ? teamPricers26.map(p => teamRows26.filter(r=>r.Pricer===p).reduce((s,r)=>s+(r.ctm||0),0)).reduce((a,b)=>a+b,0)/teamPricers26.length : null;
+  const teamAvgLoss = teamPricers26.length ? teamPricers26.map(p => teamRows26.filter(r=>r.Pricer===p).reduce((s,r)=>s+(r.loss||0),0)).reduce((a,b)=>a+b,0)/teamPricers26.length : null;
+  const teamRatio   = teamAvgCTM && teamAvgCTM !== 0 ? Math.abs(teamAvgLoss)/Math.abs(teamAvgCTM) : null;
+
+  const diffPct = (v, avg) => {
+    if (v == null || avg == null || avg === 0) return '';
+    const d = ((v - avg) / Math.abs(avg)) * 100;
+    const cls = d > 0 ? 'better' : 'worse';
+    return `<span class="${cls}" style="font-size:11px;margin-left:6px">${d>0?'+':''}${d.toFixed(1)}%</span>`;
+  };
+  // For loss ratio: lower is better
+  const diffRatio = (v, avg) => {
+    if (v == null || avg == null || avg === 0) return '';
+    const d = ((v - avg) / Math.abs(avg)) * 100;
+    const cls = d < 0 ? 'better' : 'worse'; // lower ratio = better
+    return `<span class="${cls}" style="font-size:11px;margin-left:6px">${d>0?'+':''}${d.toFixed(1)}%</span>`;
+  };
+
+  document.getElementById('ctm-ytd-wrap').style.display = pricer26.length ? '' : 'none';
+  document.getElementById('ctm-ytd-table').innerHTML = `<table>
+    <thead><tr><th>Metric</th><th>${pricer.split(' ')[0]} (YTD)</th><th>Team Avg (YTD)</th><th>vs Avg</th></tr></thead>
+    <tbody>
+      <tr><td>Total CTM</td><td><strong>${ytdCTM ? Math.round(ytdCTM).toLocaleString('es-ES')+' €' : '—'}</strong></td><td>${teamAvgCTM ? Math.round(teamAvgCTM).toLocaleString('es-ES')+' €' : '—'}</td><td>${diffPct(ytdCTM, teamAvgCTM)}</td></tr>
+      <tr><td>Total Loss</td><td><strong>${ytdLoss ? Math.round(ytdLoss).toLocaleString('es-ES')+' €' : '—'}</strong></td><td>${teamAvgLoss ? Math.round(teamAvgLoss).toLocaleString('es-ES')+' €' : '—'}</td><td>${diffPct(ytdLoss, teamAvgLoss)}</td></tr>
+      <tr><td>% Loss / CTM</td><td><strong>${ytdRatio != null ? (ytdRatio*100).toFixed(1)+'%' : '—'}</strong></td><td>${teamRatio != null ? (teamRatio*100).toFixed(1)+'%' : '—'}</td><td>${diffRatio(ytdRatio, teamRatio)}</td></tr>
+    </tbody></table>`;
+
+  // ── Last 6 months chart ──
+  const allMonths = [...new Set(CTM_DATA.map(r=>r.Month))].sort();
+  const last6 = allMonths.slice(-6);
+  const chartRows = CTM_DATA.filter(r => r.Pricer === pricer && last6.includes(r.Month)).sort((a,b)=>a.Month.localeCompare(b.Month));
+  if (ctmChart) { ctmChart.destroy(); ctmChart = null; }
+  const ctx = document.getElementById('ctm-chart').getContext('2d');
+  ctmChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: chartRows.map(r=>r.Month),
+      datasets: [
+        { label: 'Total CTM (€)', data: chartRows.map(r=>r.ctm), backgroundColor: 'rgba(16,185,129,0.7)', yAxisID: 'y1', order: 2 },
+        { label: 'Total Loss (€)', data: chartRows.map(r=>r.loss), backgroundColor: 'rgba(239,68,68,0.7)', yAxisID: 'y1', order: 2 },
+        { label: '% Loss/CTM', data: chartRows.map(r=>r.ratio!=null?+(r.ratio*100).toFixed(1):null), type: 'line', borderColor: '#f59e0b', backgroundColor:'rgba(0,0,0,0)', pointRadius: 5, tension: 0.3, yAxisID: 'y2', order: 1 }
+      ]},
+    options: { responsive: true, interaction:{mode:'index'}, plugins:{legend:{position:'bottom'}},
+      scales: {
+        y1: { position:'left', title:{display:true,text:'€'}, stacked:false },
+        y2: { position:'right', title:{display:true,text:'% Loss'}, grid:{drawOnChartArea:false}, ticks:{callback:v=>v+'%'} }
+      }}
+  });
+
+  // ── Monthly table ──
+  document.getElementById('ctm-table').innerHTML = `<table>
+    <thead><tr><th>Month</th><th>Total CTM</th><th>Total Loss</th><th>% Loss/CTM</th><th>Avg CTM</th><th>Cars Sold</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr>
+      <td>${r.Month}</td>
+      <td>${r.ctm!=null?Math.round(r.ctm).toLocaleString('es-ES')+' €':'—'}</td>
+      <td style="color:${r.loss<0?'#ef4444':'inherit'}">${r.loss!=null?Math.round(r.loss).toLocaleString('es-ES')+' €':'—'}</td>
+      <td>${r.ratio!=null?(r.ratio*100).toFixed(1)+'%':'—'}</td>
+      <td>${r.avgCtm!=null?r.avgCtm.toFixed(0)+' €':'—'}</td>
+      <td>${r.sold!=null?Math.round(r.sold):'—'}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+// ══════════════════════════════════════════════════════
+// EVENT WIRING (replaces all inline handlers for Apps Script IFRAME sandbox)
+// ══════════════════════════════════════════════════════
+function setupEvents() {
+  // Tabs
+  const tabs = document.querySelectorAll('.tab');
+  const tabNames = ['individual','team','comparison','ctm'];
+  tabs.forEach((tab, i) => {
+    tab.addEventListener('click', () => showPage(tabNames[i], tab));
+  });
+  // Individual
+  const bind = (id, fn) => { const el = document.getElementById(id); if(el) el.addEventListener('change', fn); };
+  bind('ind-view',   renderIndividual);
+  bind('ind-pricer', renderIndividual);
+  bind('ind-tf',     renderIndividual);
+  // Team
+  bind('team-view', renderTeam);
+  bind('team-tf',   renderTeam);
+  const bindToggle = (id, togId) => {
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('change', () => { toggleClass(togId,'on'); renderTeam(); });
+  };
+  bindToggle('inc-seniors', 'tog-seniors');
+  bindToggle('inc-ap',      'tog-ap');
+  // Comparison
+  bind('cmp-view', renderComparison);
+  bind('cmp-tf',   renderComparison);
+  bind('cmp-a',    renderComparison);
+  bind('cmp-b',    renderComparison);
+  // CTM
+  bind('ctm-pricer', renderCTM);
+  bind('ctm-from',   renderCTM);
+  bind('ctm-to',     renderCTM);
+  const ctmToggle = document.getElementById('ctm-inc-seniors');
+  if(ctmToggle) ctmToggle.addEventListener('change', () => { toggleClass('tog-ctm-seniors','on'); renderCTM(); });
+  // Team table sort (event delegation for dynamically generated headers)
+  const teamTableWrap = document.getElementById('team-table');
+  if(teamTableWrap) teamTableWrap.addEventListener('click', e => {
+    const th = e.target.closest('th.sortable');
+    if(th) {
+      const col = th.getAttribute('data-col');
+      if(col) sortTeam(col);
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════
+function loadEmbedded() {
+  DATA.Onsite = EMBEDDED_ONSITE.map(r => rowToObj(r, true));
+  DATA.Online = EMBEDDED_ONLINE.map(r => rowToObj(r, false));
+  CTM_DATA    = EMBEDDED_CTM.map(r => sheetRowToCTM({
+    Month: r[0], Pricer: r[1], 'Total CTM': r[2], 'Total Loss': r[3],
+    'Ratio loss:profit': r[4], 'Loss Share': r[5], 'Avg CTM': r[6], 'Avg Loss': r[7], 'Cars Sold': r[8]
+  }));
+}
+
+function renderAll() {
+  populatePricerSelect('ind-pricer', 'Onsite', false);
+  populatePricerSelect('cmp-a', 'Onsite', true);
+  populatePricerSelect('cmp-b', 'Onsite', true);
+  populateCTMSelects();
+  renderIndividual();
+}
+
+function applyLiveData(onsiteRows, onlineRows, ctmRows, metaRows) {
+  if (onsiteRows && onsiteRows.length > 1) {
+    const rows = onsiteRows.filter(r => r.Pricer);
+    if (rows.length) DATA.Onsite = rows.map(r => sheetRowToObj(r, true));
+  }
+  if (onlineRows && onlineRows.length > 1) {
+    const rows = onlineRows.filter(r => r.Pricer);
+    if (rows.length) DATA.Online = rows.map(r => sheetRowToObj(r, false));
+  }
+  if (ctmRows && ctmRows.length > 1) {
+    const rows = ctmRows.filter(r => r.Pricer);
+    if (rows.length) CTM_DATA = rows.map(r => sheetRowToCTM(r));
+  }
+  if (metaRows) {
+    const lu = metaRows.find(r => r.Key === 'Last Updated');
+    if (lu) document.getElementById('lastUpdated').textContent = lu.Value || '—';
+  }
+}
+
+async function init() {
+  setupEvents();
+  // 1. Load embedded data synchronously — dashboard is fully usable immediately
+  loadEmbedded();
+  document.getElementById('lastUpdated').textContent = 'embedded (2026-06-11)';
+  renderAll();
+
+  // 2. If Apps Script injected live data, apply it and re-render
+  if (window.__SHEET_DATA__) {
+    try {
+      applyLiveData(
+        window.__SHEET_DATA__.Onsite,
+        window.__SHEET_DATA__.Online,
+        window.__SHEET_DATA__.CTM_Losses,
+        window.__SHEET_DATA__.Metadata
+      );
+      renderAll();
+      document.getElementById('lastUpdated').textContent = 'live ✓';
+    } catch(e) { /* keep embedded data */ }
+    return;
+  }
+
+  // 3. Try fetch with a 4-second timeout (only if not served via Apps Script)
+  const fetchWithTimeout = (tabName) => Promise.race([
+    loadSheet(tabName),
+    new Promise(r => setTimeout(() => r(null), 4000))
+  ]);
+
+  try {
+    const [o, n, c, m] = await Promise.all([
+      fetchWithTimeout('Onsite'),
+      fetchWithTimeout('Online'),
+      fetchWithTimeout('CTM_Losses'),
+      fetchWithTimeout('Metadata')
+    ]);
+    if (o || n || c) {
+      applyLiveData(o, n, c, m);
+      renderAll();
+    }
+  } catch(e) { /* keep embedded */ }
+}
+
+init();
+</script>
+</body>
+</html>
